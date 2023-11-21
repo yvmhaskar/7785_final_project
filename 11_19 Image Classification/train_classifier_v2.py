@@ -27,7 +27,15 @@ import cv2
 
 # OpenCV
 import cv2
-
+def calculate_features(contour):
+    area = cv2.contourArea(contour)
+    perimeter = cv2.arcLength(contour, True)
+    circularity = (4 * np.pi * area) / (perimeter ** 2)
+    moments = cv2.moments(contour)
+    orientation = 0.5 * np.arctan2(2 * moments['mu11'], moments['mu20'] - moments['mu02'])
+    orientation = np.degrees(orientation)
+    return [area, circularity, orientation]
+    
 def apply_closing(image, kernel_size):
     kernel = np.ones((kernel_size,kernel_size), np.uint8)
     closing_result = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
