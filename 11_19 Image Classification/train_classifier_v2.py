@@ -1,3 +1,8 @@
+import numpy as np
+from sklearn import preprocessing
+testAr = np.array([[1, 2, 3],[4,5,6],[7,8,9]])
+newCol = preprocessing.normalize(testAr[:,1])
+
 #!/usr/bin/env python
 
 # ROS
