@@ -1,8 +1,3 @@
-import numpy as np
-from sklearn import preprocessing
-testAr = np.array([[1, 2, 3],[4,5,6],[7,8,9]])
-newCol = preprocessing.normalize(testAr[:,1])
-
 #!/usr/bin/env python
 
 # ROS
@@ -47,7 +42,7 @@ def apply_closing(image, kernel_size):
     return closing_result
 
 def contour_extraction(path):
-    low_H = 0
+    low_H = 20
     low_S = 99
     low_V = 119
     high_H = 10
@@ -89,6 +84,14 @@ def contour_extraction(path):
     cv2.imshow('SIMPLE Approximation contours', image_copy2)
     return contours2
 
+def normalize(arr, t_min, t_max):
+    norm_arr = []
+    diff = t_max - t_min
+    diff_arr = max(arr) - min(arr)    
+    for i in arr:
+        temp = (((i - min(arr))*diff)/diff_arr) + t_min
+        norm_arr.append(temp)
+    return norm_arr
 
 def train_classifier():
     """Train a classifier and save it as a .pkl for later use."""
@@ -122,10 +125,16 @@ def train_classifier():
         contours = sorted(contours, key=cv2.contourArea, reverse=True)
         if len(contours)>0:
             contour = contours[0]
-            contour_features_train[i] = np.array(calculate_features(contour),dtype=float)
+            #contour_features_train[i] = np.array(calculate_features(contour),dtype=float)
+            if len(contour)>8:
+                contour_features_train[i] = np.array(calculate_features(contour),dtype=float)
+            else:
+                contour_features_train[i] = np.array([0.0,0.0,0.0],dtype=float)
         else:
-            contour_features_train[i] =  np.array([0,0,0],dtype=float)
+            contour_features_train[i] = np.array([0.0,0.0,0.0], dtype=float)
+
     contour_features_train =  np.array(contour_features_train,dtype=float)
+    
 
 
     #features_train = [contour_features_train(vector).reshape(-1,3) for vector in contour_features_train]
