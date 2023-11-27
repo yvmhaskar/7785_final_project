@@ -1,0 +1,147 @@
+import cv2
+import numpy as np
+import joblib
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.utils import shuffle
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn import metrics
+
+def calculate_circularity(area, perimeter):
+    return (4 * np.pi * area) / (perimeter ** 2)
+
+def calculate_orientation(contour):
+    moments = cv2.moments(contour)
+    return 0.5 * np.arctan2(2 * moments['mu11'], moments['mu20'] - moments['mu02'])
+
+def extract_features(contour):
+    area = cv2.contourArea(contour)
+    perimeter = cv2.arcLength(contour, True)
+    circularity = calculate_circularity(area, perimeter)
+    orientation = calculate_orientation(contour)
+    return [circularity, orientation]
+
+def crop_object(image_path):
+    original_image = cv2.imread(image_path)
+    gray_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
+    _, binary_image = cv2.threshold(gray_image, 150, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Select the largest contour
+    largest_contour = max(contours, key=cv2.contourArea)
+    x, y, w, h = cv2.boundingRect(largest_contour)
+
+    # Crop the original image around the detected object
+    cropped_image = original_image[y:y+h, x:x+w]
+
+    return cropped_image
+
+def contour_extraction(path):
+    # Load the image
+    image = cv2.imread(path)
+
+    # Convert the image to grayscale
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Apply thresholding
+    _, binary_image = cv2.threshold(gray_image, 150, 255, cv2.THRESH_BINARY)
+
+    # Find contours
+    contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    return contours
+
+def extract_color_histogram(image):
+    hist = cv2.calcHist([image], [0, 1, 2], None, [256, 256, 256], [0, 256, 0, 256, 0, 256])
+    hist = hist.flatten()
+    hist /= np.sum(hist)  # Normalize
+    return hist
+
+def extract_HOG(image):
+    # Convert the image to grayscale
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Apply HOG feature extraction
+    _, hog_image = hog(
+        gray_image,
+        orientations=8,
+        pixels_per_cell=(16, 16),
+        cells_per_block=(1, 1),
+        visualize=True,
+        block_norm='L2-Hys',
+        multichannel=False,
+    )
+
+    # Rescale histogram for better display
+    hog_image_rescaled = exposure.rescale_intensity(hog_image, in_range=(0, 10))
+
+    return hog_image_rescaled.flatten()
+
+def extract_SIFT(image):
+    # Implement SIFT feature extraction here
+    pass
+
+def load_data(images_filepath, labels_filepath):
+    # Load labels
+    labels_data = np.loadtxt(labels_filepath, delimiter=',', dtype=str)
+    label_encoder = LabelEncoder()
+    labels = label_encoder.fit_transform(labels_data[:, 1])
+
+    # Load images and extract features
+    images = []
+    features = []
+
+    for number in labels_data[:, 0]:
+        image_path = f'{images_filepath}{number}.png'
+        image = cv2.imread(image_path)
+
+        # Extract features (you can choose to use a combination of these features)
+        circularity, orientation = extract_features(contour_extraction(image_path)[0])
+        color_histogram = extract_color_histogram(image)
+        hog_features = extract_HOG(image)
+        sift_features = extract_SIFT(image)
+
+        # Combine features
+        combined_features = np.concatenate([color_histogram, [circularity, orientation]])
+
+        images.append(image)
+        features.append(combined_features)
+
+    return np.array(images), labels, features
+
+def train_classifier():
+    images_filepath = '/path/to/your/images/'
+    labels_filepath = '/path/to/your/labels.csv'
+
+    split = 0.4
+
+    data, label, features = load_data(images_filepath, labels_filepath)
+
+    data, label = shuffle(data, label)
+    data_train, data_test, label_train, label_test, features_train, features_test = train_test_split(
+        data, label, features, test_size=split
+    )
+
+    # Initialize the classifier (RandomForestClassifier in this case)
+    classifier = RandomForestClassifier(n_estimators=100, random_state=42)
+
+    # Train the classifier
+    classifier.fit(features_train, label_train)
+
+    # Evaluate the classifier
+    print('Detailed results on a %0.0f/%0.0f train/test split:' % ((1 - split) * 100, split * 100))
+    predicted = classifier.predict(features_test)
+    print(metrics.classification_report(label_test, predicted))
+    print(metrics.confusion_matrix(label_test, predicted))
+
+    # Save the trained model
+    joblib.dump(classifier, 'classifier.pkl')
+    print('Saved model classifier.pkl to the current directory.')
+
+if __name__ == '__main__':
+    try:
+        train_classifier()
+    except cv2.error as e:
+        print(f"An OpenCV error occurred: {e}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
