@@ -34,9 +34,13 @@ def train_classifier():
     data, label = shuffle(data, label)
     data_train, data_test, label_train, label_test = train_test_split(data, label, test_size=split)
 
+    # Crop images
+    data_train_cropped = [crop_function(image) for image in data_train]
+    data_test_cropped = [crop_function(image) for image in data_test]
+    
     # Feature extraction using color histogram
-    color_hist_features_train = [extract_color_histogram(image).reshape(-1) for image in data_train]
-    color_hist_features_test = [extract_color_histogram(image).reshape(-1) for image in data_test]
+    color_hist_features_train = [extract_color_histogram(image).reshape(-1) for image in data_train_cropped]
+    color_hist_features_test = [extract_color_histogram(image).reshape(-1) for image in data_test_cropped]
 
     # Feature extraction using SIFT
     sift_features_train = [extract_sift_features(image) for image in data_train]
