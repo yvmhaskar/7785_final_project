@@ -1,4 +1,13 @@
-# Error: ValueError: all the input arrays must have same number of dimensions, but the array at index 0 has 2 dimension(s) and the array at index 2 has 1 dimension(s)
+# # Concatenate features
+features_train = np.hstack((color_hist_features_train, hog_features_train, skewness_features_train))
+print('color_hist_features_train shape:', color_hist_features_train[0].shape)
+print('hog_features_train shape:', hog_features_train[0].shape)
+print('skewness_features_train shape:', skewness_features_train[0].shape)
+
+features_test = np.hstack((color_hist_features_test, hog_features_test, skewness_features_test))
+print('color_hist_features_test shape:', color_hist_features_test[0].shape)
+print('hog_features_test shape:', hog_features_test[0].shape)
+print('skewness_features_test shape:', skewness_features_test[0].shape)
 #ROS
 #import rclpy
 #import rospkg
