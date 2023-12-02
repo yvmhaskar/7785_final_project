@@ -25,8 +25,13 @@ def calculateNewWaypoint(x, y, w, dir):
         [0, 0, 0, 1]
     ])
     Pnew = np.dot(T, local_p1)
-
-    return Pnew
+    Wnew = w+dw
+    Wnew = np.arctan2(np.sin(Wnew), np.cos(Wnew))
+    Pnew[2] = Wnew
+    x_new = Pnew[0]
+    y_new = Pnew[1]
+    w_new = Pnew[2]
+    return x_new, y_new, w_new, dir
 
 # Number of iterations
 num_iterations = 5
@@ -41,17 +46,22 @@ plt.figure(figsize=(10, 10))
 
 # Plotting
 plt.scatter(x_cur, y_cur, marker='o', color='blue', label='Initial Position')
-
-for _ in range(num_iterations):
-    dir = np.random.choice([1, 2, 3, 0])
-    x_cur, y_cur, w_cur = calculateNewWaypoint(x_cur, y_cur, w_cur, dir)
+scale_factor = 0.02*plt.gcf().get_size_inches()[0]
+for i in range(1, num_iterations+1):
+    dir = np.random.choice([1, 2])
+    x_cur, y_cur, w_cur, dur = calculateNewWaypoint(x_cur, y_cur, w_cur, dir)
+    print(x_cur, y_cur, w_cur,dir)
     plt.scatter(x_cur, y_cur, marker='o', color='red')
-    plt.quiver(x_cur, y_cur, np.cos(w_cur), np.sin(w_cur), angles='xy', scale_units='xy', scale=0.5, color='green')
+    #plt.quiver(x_cur, y_cur, np.cos(w_cur), np.sin(w_cur), angles='xy', scale_units='xy', scale=scale_factor, color='green')
+    plt.text(x_cur, y_cur, str(i), fontsize=10, ha = 'right', va = 'bottom')
 
 # Final position and orientation
 plt.scatter(x_cur, y_cur, marker='o', color='orange', label='Final Position')
-plt.quiver(x_cur, y_cur, np.cos(w_cur), np.sin(w_cur), angles='xy', scale_units='xy', scale=0.5, color='green', label='Final Direction')
+#plt.quiver(x_cur, y_cur, np.cos(w_cur), np.sin(w_cur), angles='xy', scale_units='xy', scale=scale_factor, color='green', label='Final Direction')
+plt.text(x_cur, y_cur, 'End', fontsize=10, ha = 'right', va = 'bottom')
 
+plt.axis('equal')
+plt.axis('auto')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.title('Robot Movement')
