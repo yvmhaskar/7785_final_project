@@ -28,8 +28,8 @@ from scipy.stats import skew
 
 # Function to train the classifier
 def train_classifier():
-    images_filepath = '/home/ymhaskar/VisionFollowing/2023Simgs/S2023_imgs/' #'/home/ymhaskar/VisionFollowing/2023Fimgs/'
-    labels_filepath = '/home/ymhaskar/VisionFollowing/2023Simgs/S2023_imgs/Newlabels.csv'#'/home/ymhaskar/VisionFollowing/2023Fimgs//labels2.csv'
+    images_filepath = '/home/raphael/Documents/Team19_Final/2023Fimgs/' #'/home/ymhaskar/VisionFollowing/2023Fimgs/'
+    labels_filepath = '/home/raphael/Documents/Team19_Final/2023Fimgs/labels.txt'#'/home/ymhaskar/VisionFollowing/2023Fimgs//labels2.csv'
 
     split = 0.4
 
@@ -54,8 +54,15 @@ def train_classifier():
     #sift_features_test = [extract_sift_features(image) for image in data_test]
 
     # Feature extraction using HOG
-    hog_features_train = [extract_hog_features(image).reshape(-1) for image in data_train]
-    hog_features_test = [extract_hog_features(image).reshape(-1) for image in data_test]
+    #height, width,_ = data[0].shape
+    #height, width = [print(image.shape) for image in data]
+    #[print(image.shape) for image in data]
+    #desired_width, desired_height = max(width), max(height)
+    fixed_size = (308,410)
+    resized_images1 = [cv2.resize(image, fixed_size) for image in data_train_cropped]
+    resized_images2 = [cv2.resize(image, fixed_size) for image in data_test_cropped]
+    hog_features_train = [extract_hog_features(image).reshape(-1) for image in resized_images1]
+    hog_features_test = [extract_hog_features(image).reshape(-1) for image in resized_images2]
     #print(np.mean(hog_features_train[0]))
 
     # Feature extraction using HOG skewness
@@ -322,7 +329,7 @@ def normalize_Skew(skew_vals):
 # Function to load data from CSV files
 def load_data(images_filepath, labels_filepath):
     labels_data = np.loadtxt(labels_filepath, delimiter=',', dtype=str)
-    images_paths = [images_filepath + f'{number}.png' for number in labels_data[:, 0]]
+    images_paths = [images_filepath + f'{number}.jpg' for number in labels_data[:, 0]]
     images = [cv2.imread(image_path) for image_path in images_paths]
     labels = labels_data[:, 1]
     labels_array = np.array(labels, dtype=int).reshape(-1,1)
