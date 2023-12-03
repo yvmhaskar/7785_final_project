@@ -56,18 +56,19 @@ global y_des
 y_des = 0.0
 global w_des
 w_des = 1.0
-global image_array
-image_array = np.zeros([20,1])
 global prediction
 prediction = 0
 global lidar_input
 lidar_input = 0
+global predicted
+predicted = np.zeros([20,1])
 
 global block_centers
-block_centers_old = np.array([[-0.25,0.0],[0.6,0.0],[0.6,-0.9],[-0.25,-0.9],[-0.25,-1.8],[-1.1,-1.8],[-1.1,-0.9],[-1.1,0.0],
-						  [-2.0,0.0],[-2.0,-0.9],[-2.0,-1.8],[-2.9,-1.8],[-2.9,-0.9],[-2.9,0.0],[-3.8,0.0],[-3.8,-0.9],[-3.8,-1.8]])
-block_centers = np.array([[0.0,0.0], [0.9, 0], [0.9,-0.9], [0.0,-0.9], [0.0, -1.8], [-0.9, -1.8], [-0.9, -0.9], [-0.9, 0.0],[-1.8, 0.0], [-1.8, -0.9], [-1.8, -1.8], [-2.7, -1.8],[-2.7, -0.9], [-2.7, 0.0], [-3.6, 0.0], [-3.6, -0.9],[-3.6, 0.0]])
+#block_centers = np.array([[-0.25,0.0],[0.6,0.0],[0.6,-0.9],[-0.25,-0.9],[-0.25,-1.8],[-1.1,-1.8],[-1.1,-0.9],[-1.1,0.0],
+#						  [-2.0,0.0],[-2.0,-0.9],[-2.0,-1.8],[-2.9,-1.8],[-2.9,-0.9],[-2.9,0.0],[-3.8,0.0],[-3.8,-0.9],[-3.8,-1.8]])
 
+block_centers = np.array([[0.0,0.0], [0.9, 0], [0.9,-0.9], [0.0,-0.9], [0.0, -1.8], [-0.9, -1.8], [-0.9, -0.9], [-0.9, 0.0],[-1.8, 0.0], 
+						  [-1.8, -0.9], [-1.8, -1.8], [-2.7, -1.8],[-2.7, -0.9], [-2.7, 0.0], [-3.6, 0.0], [-3.6, -0.9],[-3.6, 0.0]])
 class NavMaze(Node):
 	def __init__(self):
 		super().__init__('nav_maze')
@@ -96,12 +97,13 @@ class NavMaze(Node):
 		self.waypt_pub = self.create_publisher(PoseStamped, 'goal_pose', 10)
 
 	def image_callback(self, CompressedImage):
-		global flag_get_image, image_array, state
+		global flag_get_image, image_array, state, predicted
 		if flag_get_image>0 and flag_get_image<=20:
 			if state==1:
-				image_array[0] = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
+				image = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
 			if state==2:
-				image_array[flag_get_image-1] = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
+				image = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
+				predicted[flag_get_image-1] = self.classify_image(image)
 				flag_get_image = flag_get_image+1
 		else:
 			flag_get_image=0
@@ -112,7 +114,7 @@ class NavMaze(Node):
 		lidar_input = float(msg_data)
 
 	def feedback_callback(self,msg):
-		global state, x_des, y_des, w_des, flag_get_image, image_array, block_centers, prediction, lidar_input
+		global state, x_des, y_des, w_des, flag_get_image, image_array, block_centers, prediction, lidar_input, predicted
 		
 		feedback = msg.feedback
 		self.x_cur = feedback.current_pose.pose.position.x
@@ -162,7 +164,8 @@ class NavMaze(Node):
 			self.get_logger().info('State 2: Taking images')
 			if flag_get_image==0:
 				self.get_logger().info('State 2: Classifying image')
-				prediction = self.classify_image(image_array)
+				#prediction = self.classify_image(image_array)
+				prediction = np.median(predicted)
 				if prediction==0 and lidar_input==1:# 1 means wall in front
 					state = 3
 					x_des = self.x_cur
@@ -229,25 +232,25 @@ class NavMaze(Node):
 		if state == 6:
 			self.get_logger().info('State 6: REACHED GOALLLLLLL')
 
-		goal = PoseStamped()
-		goal.header.frame_id = "map"
-		goal.pose.position.x = x_des
-		goal.pose.position.y = y_des
-		goal.pose.position.z = 0.0
-		goal.pose.orientation.x = 0.0
-		goal.pose.orientation.y = 0.0
-		goal.pose.orientation.z = 0.0
-		goal.pose.orientation.w = w_des
-		self.waypt_pub.publish(goal)
+		#goal = PoseStamped()
+		#goal.header.frame_id = "map"
+		#goal.pose.position.x = x_des
+		#goal.pose.position.y = y_des
+		#goal.pose.position.z = 0.0
+		#goal.pose.orientation.x = 0.0
+		#goal.pose.orientation.y = 0.0
+		#goal.pose.orientation.z = 0.0
+		#goal.pose.orientation.w = w_des
+		#self.waypt_pub.publish(goal)
 
 		#self.waypt_pub.publish(goal)
 		
-	def classify_image(self,image_array):
+	def classify_image(self,image):
 		
 		#images_filepath ='/home/ymhaskar/VisionFollowing/2022Fimgs/' # TESTING ON 2022Fimgs
 		#labels_filepath = '/home/ymhaskar/VisionFollowing/2022Fimgs/labels2.txt'
 
-		data = image_array
+		data = image
 		classifier_filepath = '/home/ymhaskar/classifier.pkl'
 
 		# Load data
@@ -273,8 +276,7 @@ class NavMaze(Node):
 		
 		classifier = joblib.load(classifier_filepath)
 		predicted = classifier.predict(features_test)
-		pred = np.median(predicted)
-		return pred
+		return predicted
 
 	def crop_function(self,image):
 		low_H = 0
@@ -450,16 +452,43 @@ class NavMaze(Node):
 		return np.array([skewness])
 
 	# normalize an array
-	def normalize_Skew(skew_vals):
+	def normalize_Skew(self, skew_vals):
 		norm_vals = np.zeros(len(skew_vals))
 		for i in range(0,len(skew_vals)):
 			norm_vals[i] = (skew_vals[i]-min(skew_vals))/(max(skew_vals)-min(skew_vals))
 		return norm_vals
+	
+	def publish_waypt(self,x,y,w):
+		goal = PoseStamped()
+		goal.header.frame_id = "map"
+		goal.pose.position.x = x
+		goal.pose.position.y = y
+		goal.pose.position.z = 0.0
+		goal.pose.orientation.x = 0.0
+		goal.pose.orientation.y = 0.0
+		goal.pose.orientation.z = 0.0
+		goal.pose.orientation.w = w
+		self.waypt_pub.publish(goal)
+		self.get_logger().info('X: {}'.format(x))
+		self.get_logger().info('Y: {}'.format(y))
+		self.get_logger().info('W: {}'.format(w))
 
 def main(args=None):
+	
+	#rclpy.init(args=args)
+	#nav_maze=NavMaze()
+	#nav_maze.feedback_callback
+	#rclpy.spin(nav_maze)
+	#nav_maze.destroy_node()
+	#rclpy.shutdown()
+
+	global x_des, y_des, w_des
 	rclpy.init(args=args)
 	nav_maze=NavMaze()
-	nav_maze.feedback_callback
-	rclpy.spin(nav_maze)
-	nav_maze.destroy_node()
+	print('Started Publishing')
+	while rclpy.ok():
+		nav_maze.feedback_callback
+		nav_maze.publish_waypt(x_des, y_des, w_des)
+		rclpy.spin_once(nav_maze, timeout_sec=1)
+
 	rclpy.shutdown()
