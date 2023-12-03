@@ -3,7 +3,7 @@ import numpy as np
 
 # function that takes current point and uses desired direction to output a new position and orientation
 def newWaypt(x, y, w, dir):
-    waypoints = np.array([[1, 1, 0], [1, 2, 0], [2, 1, 0], [2, 2, 0]])
+    waypoints = np.array[[-0.25,0.0],[0.6,0.0],[0.6,-0.9],[-0.25,-0.9],[-0.25,-1.8],[-1.1,-1.8],[-1.1,-0.9],[-1.1,0.0],[-2.0,0.0],[-2.0,-0.9],[-2.0,-1.8],[-2.9,-1.8],[-2.9,-0.9],[-2.9,0.0],[-3.8,0.0],[-3.8,-0.9],[-3.8,-1.8]]
 
     if dir == 1:
         dw = -pi / 2.0
