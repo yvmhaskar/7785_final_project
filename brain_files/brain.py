@@ -63,7 +63,8 @@ global lidar_input
 lidar_input = 0
 
 global block_centers
-block_centers = np.array[[1.0,1.0],[2.0,2.0],[3.0,3.0]]
+block_centers = np.array([[-0.25,0.0],[0.6,0.0],[0.6,-0.9],[-0.25,-0.9],[-0.25,-1.8],[-1.1,-1.8],[-1.1,-0.9],[-1.1,0.0],
+						  [-2.0,0.0],[-2.0,-0.9],[-2.0,-1.8],[-2.9,-1.8],[-2.9,-0.9],[-2.9,0.0],[-3.8,0.0],[-3.8,-0.9],[-3.8,-1.8]])
 
 class NavMaze(Node):
 	def __init__(self):
@@ -345,7 +346,6 @@ class NavMaze(Node):
 		global block_centers
 		waypoints = block_centers
 		block_size = 0.3
-		#np.array([[1, 1, 0], [1, 2, 0], [2, 1, 0], [2, 2, 0]])
 
 		if dir == 1: #Right
 			dw = -np.pi / 2.0
@@ -368,7 +368,7 @@ class NavMaze(Node):
 		])
 		Pnew = np.dot(T, local_p1)
 		min_error = float('inf')
-		newWaypoint = None
+		newWaypoint = np.zeros(3)
 
 		for waypoint in waypoints:
 			x_target, y_target = waypoint #took out w_temp
@@ -377,7 +377,7 @@ class NavMaze(Node):
 			error = math.sqrt((x_target - Pnew[0]) ** 2 + (y_target - Pnew[1]) ** 2)
 			if error < min_error:
 				min_error = error
-				newWaypoint = waypoint
+				newWaypoint[:2] = waypoint
 
 		
 
