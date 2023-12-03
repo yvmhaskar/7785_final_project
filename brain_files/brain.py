@@ -1,8 +1,8 @@
 # Joseph Sommer and Yash Mhaskar
 
-# aligning (maybe if navstack orientation isn't good enough)
-# test that image_classifier is outputing a direction
-# test that waypoint calc is sending out the right waypoint based on a direction and successfully publishing the waypoints. Note: need to publish current position at the start a bunch of times just to get it moving
+# aligning
+# get_lidar data and function. Already have from lab 4
+# state 3, after detecting a wall, what do you do?
 
 # Required Libraries
 from __future__ import print_function
@@ -57,17 +57,15 @@ y_des = 0.0
 global w_des
 w_des = 1.0
 global image_array
+image_array = np.zeros([20,1])
 global prediction
 prediction = 0
 global lidar_input
 lidar_input = 0
 
 global block_centers
-# this is the old one that is bad
 block_centers = np.array([[-0.25,0.0],[0.6,0.0],[0.6,-0.9],[-0.25,-0.9],[-0.25,-1.8],[-1.1,-1.8],[-1.1,-0.9],[-1.1,0.0],
 						  [-2.0,0.0],[-2.0,-0.9],[-2.0,-1.8],[-2.9,-1.8],[-2.9,-0.9],[-2.9,0.0],[-3.8,0.0],[-3.8,-0.9],[-3.8,-1.8]])
-# new points based on map3.yaml
-block_centers = np.array([[0.0,0.0], [0.9, 0], [0.9,-0.9], [0.0,-0.9], [0.0, -1.8], [-0.9, -1.8], [-0.9, -0.9], [-0.9, 0.0],[-1.8, 0.0], [-1.8, -0.9], [-1.8, -1.8], [-2.7, -1.8],[-2.7, -0.9], [-2.7, 0.0], [-3.6, 0.0], [-3.6, -0.9],[-3.6, 0.0]])
 
 class NavMaze(Node):
 	def __init__(self):
@@ -98,10 +96,9 @@ class NavMaze(Node):
 
 	def image_callback(self, CompressedImage):
 		global flag_get_image, image_array, state
-
 		if flag_get_image>0 and flag_get_image<=20:
 			if state==1:
-				image_array = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
+				image_array[0] = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
 			if state==2:
 				image_array[flag_get_image-1] = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
 				flag_get_image = flag_get_image+1
@@ -115,7 +112,7 @@ class NavMaze(Node):
 
 	def feedback_callback(self,msg):
 		global state, x_des, y_des, w_des, flag_get_image, image_array, block_centers, prediction, lidar_input
-
+		
 		feedback = msg.feedback
 		self.x_cur = feedback.current_pose.pose.position.x
 		self.y_cur = feedback.current_pose.pose.position.y
