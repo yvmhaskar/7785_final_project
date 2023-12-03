@@ -13,6 +13,7 @@ from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy, QoSHistoryPolicy
 import math
 from sensor_msgs.msg import CompressedImage
+from std_msgs.msg import Float32
 
 # numpy
 import numpy as np
@@ -58,6 +59,8 @@ w_des = 1.0
 global image_array
 global prediction
 prediction = 0
+global lidar_input
+lidar_input = 0
 
 global block_centers
 block_centers = np.array[[1.0,1.0],[2.0,2.0],[3.0,3.0]]
@@ -74,7 +77,7 @@ class NavMaze(Node):
 			depth=1
 		)
 
-		#Declare get_image node is subcribing to the /camera/image/compressed topic.
+		#Declare image_callback node is subcribing to the /camera/image/compressed topic.
 		self.get_image = self.create_subscription(CompressedImage,'/image_raw/compressed',self.image_callback,image_qos_profile)
 		self.get_image # Prevents unused variable warning.
 
@@ -82,6 +85,10 @@ class NavMaze(Node):
 		self.feedback_sub = self.create_subscription(NavigateToPose_FeedbackMessage,'/navigate_to_pose/_action/feedback',self.feedback_callback,10)
 		self.feedback_sub
 		
+		#Declare lidar_sub is subscribing to the wall_detection.
+		self.lidar_sub = self.create_subscription(Float32,'/wall_detection',self.lidar_callback,10)
+		self.lidar_sub
+
 		#Declare waypt_publisher
 		self.waypt_pub = self.create_publisher(PoseStamped, 'goal_pose', 10)
 
@@ -97,8 +104,13 @@ class NavMaze(Node):
 		else:
 			flag_get_image=0
 
+	def lidar_callback(self,msg):
+		global lidar_input
+		msg_data = msg.data
+		lidar_input = float(msg_data)
+
 	def feedback_callback(self,msg):
-		global state, x_des, y_des, w_des, flag_get_image, image_array, block_centers, prediction
+		global state, x_des, y_des, w_des, flag_get_image, image_array, block_centers, prediction, lidar_input
 
 		feedback = msg.feedback
 		self.x_cur = feedback.current_pose.pose.position.x
@@ -128,7 +140,7 @@ class NavMaze(Node):
 			err_lin = np.min(dist_err)
 			
 			if err_lin<err_lim_lin: # pick a new value based off burger.yaml file/tuning
-				state = 1
+				state = 2
 				flag_get_image = 1
 			
 		if state == 1:
@@ -150,7 +162,10 @@ class NavMaze(Node):
 				self.get_logger().info('State 2: Classifying image')
 				prediction = self.classify_image(image_array)
 				if prediction==0 and lidar_input==1:# 1 means wall in front
-					state = 3 
+					state = 3
+					x_des = self.x_cur
+					y_des = self.y_cur
+					w_des = self.w_cur + 3.14/2
 				else:
 					state = 4
 			x_des = self.x_cur
@@ -159,10 +174,8 @@ class NavMaze(Node):
 		
 		if state == 3:
 			self.get_logger().info('State 3: Wall detected, turning right')
-			x_des = self.x_cur
-			y_des = self.y_cur
-			w_des = self.w_cur + 3.14/2
 			
+			err_ang = abs(w_des-self.w_cur)
 			if err_ang<err_lim_ang: # pick a new value based off burger.yaml file/tuning
 				state = 2# change depending on status of alignment
 				flag_get_image = 1
@@ -374,27 +387,13 @@ class NavMaze(Node):
 		#Pnew[2] = Wnew
 		return newWaypoint
 	
-	def apply_closing(image, kernel_size):
+	def apply_closing(self,image, kernel_size):
 		kernel = np.ones((kernel_size,kernel_size), np.uint8)
 		closing_result = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
 		return closing_result
 
 	# Function to extract color histogram features
-	def extract_color_histogram2(image):
-		blur = cv2.GaussianBlur(image,(15,15),0)
-		image = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
-		hist = cv2.calcHist([image], [0, 1, 2], None, [256, 256, 256], [0, 256, 0, 256, 0, 256])
-		hist = hist.flatten()
-		#print('reached')
-		## check if sum is 0
-		if np.sum(hist)==0:
-			print('Zero sum')
-			return np.zeros_like(hist)
-		hist /= np.sum(hist)  # Normalize
-		return hist
-
-	# Function to extract color histogram features
-	def extract_color_histogram(image):
+	def extract_color_histogram(self, image):
 		blur = cv2.GaussianBlur(image,(15,15),0)
 		image = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)  
 		#print('AVG HSV')
@@ -408,16 +407,15 @@ class NavMaze(Node):
 		#print(avg_h)
 		return np.array([avg_h, avg_s, avg_v])
 
-
 	# Function to extract SIFT features
-	def extract_sift_features(image):
+	def extract_sift_features(self,image):
 		gray_image = color.rgb2gray(image)
 		sift = SIFT()
 		sift.detect_and_extract(gray_image)
 		return sift.descriptors.flatten()
 
 	# Function to extract HOG features
-	def extract_hog_features(image):
+	def extract_hog_features(self,image):
 		gray_image = color.rgb2gray(image)
 		fd, hog_image = hog(
 			gray_image,
@@ -434,7 +432,7 @@ class NavMaze(Node):
 		return hog_image_np*10000.0
 
 	# Function to extract skewness of HOG
-	def compute_hog_skewness(image):
+	def compute_hog_skewness(self,image):
 		gray_image = color.rgb2gray(image)
 		fd, hog_image = hog(
 			gray_image,
@@ -457,41 +455,10 @@ class NavMaze(Node):
 			norm_vals[i] = (skew_vals[i]-min(skew_vals))/(max(skew_vals)-min(skew_vals))
 		return norm_vals
 
-	# Function to load data from CSV files
-	def load_data(images_filepath, labels_filepath):
-		labels_data = np.loadtxt(labels_filepath, delimiter=',', dtype=str)
-		images_paths = [images_filepath + f'{number}.png' for number in labels_data[:, 0]] #convert jpg to png if needed
-		images = [cv2.imread(image_path) for image_path in images_paths]
-		labels = labels_data[:, 1]
-		labels_array = np.array(labels, dtype=int).reshape(-1,1)
-		#print('labels shape:', labels_array.shape)
-		#print(labels_array)
-		return np.array(images), labels_array
-
-
-	def publish_waypt(self,x,y,w):
-		goal = PoseStamped()
-		goal.header.frame_id = "map"
-		goal.pose.position.x = x
-		goal.pose.position.y = y
-		goal.pose.position.z = 0.0
-		goal.pose.orientation.x = 0.0
-		goal.pose.orientation.y = 0.0
-		goal.pose.orientation.z = 0.0
-		goal.pose.orientation.w = w
-		self.waypt_pub.publish(goal)
-		print('published')
-
 def main(args=None):
-
-	# Setting up publisher values
-	global x_des, y_des, w_des
 	rclpy.init(args=args)
 	nav_maze=NavMaze()
-	print('Started Publishing')
-	while rclpy.ok():
-		nav_maze.feedback_callback
-		nav_maze.publish_waypt(x_des, y_des, w_des)
-		rclpy.spin_once(waypt_pub, timeout_sec=1)
-
+	nav_maze.feedback_callback
+	rclpy.spin(nav_maze)
+	nav_maze.destroy_node()
 	rclpy.shutdown()
