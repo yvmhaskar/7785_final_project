@@ -166,7 +166,10 @@ class NavMaze(Node):
 				self.get_logger().info('State 2: Classifying image')
 				#prediction = self.classify_image(image_array)
 				prediction = np.median(predicted)
+				self.get_logger().info('Prediction: {}'.format(prediction))
+				self.get_logger().info('State 2: Classifying image')
 				if prediction==0 and lidar_input==1:# 1 means wall in front
+					self.get_logger().info('State 2: classified wall')
 					state = 3
 					x_des = self.x_cur
 					y_des = self.y_cur
@@ -188,35 +191,35 @@ class NavMaze(Node):
 		if state == 4:
 			self.get_logger().info('State 4: Determining Next Waypoint')
 
-			if prediction==0 and lidar_input==0:
+			if prediction==0 and lidar_input==0: # wall classification without wall there
 				Newpt = self.newWaypt(self.x_cur,self.y_cur,self.w_cur,0)
 				x_des = Newpt[0]
 				y_des = Newpt[1]
 				w_des = Newpt[2]
 				state = 5
 
-			if prediction==1 or prediction==2:
+			if prediction==1 or prediction==2: # left arrows
 				Newpt = self.newWaypt(self.x_cur,self.y_cur,self.w_cur,2)
 				x_des = Newpt[0]
 				y_des = Newpt[1]
 				w_des = Newpt[2]
 				state = 5
 
-			if prediction==3 or prediction==4:
+			if prediction==3 or prediction==4: # right arrows
 				Newpt = self.newWaypt(self.x_cur,self.y_cur,self.w_cur,1)
 				x_des = Newpt[0]
 				y_des = Newpt[1]
 				w_des = Newpt[2]
 				state = 5
 
-			if prediction==5 or prediction==6:
+			if prediction==5 or prediction==6: # stop an turn around
 				Newpt = self.newWaypt(self.x_cur,self.y_cur,self.w_cur,3)
 				x_des = Newpt[0]
 				y_des = Newpt[1]
 				w_des = Newpt[2]
 				state = 5
 
-			if prediction==7:
+			if prediction==7: # reached goal
 				state = 6
 				x_des = self.x_cur
 				y_des = self.y_cur
@@ -348,7 +351,7 @@ class NavMaze(Node):
 	def newWaypt(self,x, y, w, dir):
 		global block_centers
 		waypoints = block_centers
-		block_size = 0.3
+		block_size = 0.9
 
 		if dir == 1: #Right
 			dw = -np.pi / 2.0
@@ -388,6 +391,7 @@ class NavMaze(Node):
 		Wnew = np.arctan2(np.sin(Wnew), np.cos(Wnew))
 		newWaypoint[2] = Wnew
 		#Pnew[2] = Wnew
+		self.get_logger().info('newWaypoint: {}'.format(w))
 		return newWaypoint
 	
 	def apply_closing(self,image, kernel_size):
@@ -490,5 +494,7 @@ def main(args=None):
 		nav_maze.feedback_callback
 		nav_maze.publish_waypt(x_des, y_des, w_des)
 		rclpy.spin_once(nav_maze, timeout_sec=1)
+
+	rclpy.shutdown()
 
 	rclpy.shutdown()
