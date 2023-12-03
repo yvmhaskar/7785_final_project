@@ -122,10 +122,11 @@ class NavMaze(Node):
 			y_des = block_centers[idx][1]
 			w_des = self.w_cur
 			err_lin = np.min(dist_err)
+			
 			if err_lin<err_lim_lin: # pick a new value based off burger.yaml file/tuning
 				state = 1
 				flag_get_image = 1
-
+			
 		if state == 1:
 			self.get_logger().info('State 1: Aligning with the image')
 			
@@ -196,35 +197,23 @@ class NavMaze(Node):
 		if state == 5:
 			self.get_logger().info('State 5: Moving to new waypoint')
 			dist_err = math.sqrt((x_des-self.x_cur)**2 + (y_des-self.y_cur)**2)
-			
+
 			if dist_err< err_lim_lin:
 				state=0
-			else:
-				goal = PoseStamped()
-				goal.header.frame_id = "map"
-				goal.pose.position.x = x_des
-				goal.pose.position.y = y_des
-				goal.pose.position.z = 0.0
-				goal.pose.orientation.x = 0.0
-				goal.pose.orientation.y = 0.0
-				goal.pose.orientation.z = 0.0
-				goal.pose.orientation.w = w_des
-				self.waypt_pub.publish(goal)
 				
 		if state == 6:
 			self.get_logger().info('State 6: REACHED GOALLLLLLL')
 
-			goal = PoseStamped()
-			goal.header.frame_id = "map"
-			goal.pose.position.x = x_des
-			goal.pose.position.y = y_des
-			goal.pose.position.z = 0.0
-			goal.pose.orientation.x = 0.0
-			goal.pose.orientation.y = 0.0
-			goal.pose.orientation.z = 0.0
-			goal.pose.orientation.w = w_des
-			self.waypt_pub.publish(goal)
-			
+		goal = PoseStamped()
+		goal.header.frame_id = "map"
+		goal.pose.position.x = x_des
+		goal.pose.position.y = y_des
+		goal.pose.position.z = 0.0
+		goal.pose.orientation.x = 0.0
+		goal.pose.orientation.y = 0.0
+		goal.pose.orientation.z = 0.0
+		goal.pose.orientation.w = w_des
+		self.waypt_pub.publish(goal)
 
 		#self.waypt_pub.publish(goal)
 		
