@@ -1,8 +1,8 @@
 # Joseph Sommer and Yash Mhaskar
 
-# aligning
-# get_lidar data and function. Already have from lab 4
-# state 3, after detecting a wall, what do you do?
+# aligning (maybe if navstack orientation isn't good enough)
+# test that image_classifier is outputing a direction
+# test that waypoint calc is sending out the right waypoint based on a direction and successfully publishing the waypoints. Note: need to publish current position at the start a bunch of times just to get it moving
 
 # Required Libraries
 from __future__ import print_function
