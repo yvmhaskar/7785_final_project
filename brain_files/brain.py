@@ -1,5 +1,9 @@
 # Joseph Sommer and Yash Mhaskar
 
+# aligning
+# get_lidar data and function. Already have from lab 4
+# state 3, after detecting a wall, what do you do?
+
 # Required Libraries
 from __future__ import print_function
 import rclpy
@@ -81,7 +85,7 @@ class NavMaze(Node):
 		#Declare waypt_publisher
 		self.waypt_pub = self.create_publisher(PoseStamped, 'goal_pose', 10)
 
-	def get_image(self, CompressedImage):
+	def image_callback(self, CompressedImage):
 		global flag_get_image, image_array, state
 
 		if flag_get_image>0 and flag_get_image<=20:
@@ -145,8 +149,8 @@ class NavMaze(Node):
 			if flag_get_image==0:
 				self.get_logger().info('State 2: Classifying image')
 				prediction = self.classify_image(image_array)
-				if prediction==0 and lidar_input==1:
-					state = 3
+				if prediction==0 and lidar_input==1:# 1 means wall in front
+					state = 3 
 				else:
 					state = 4
 			x_des = self.x_cur
@@ -155,7 +159,13 @@ class NavMaze(Node):
 		
 		if state == 3:
 			self.get_logger().info('State 3: Wall detected, turning right')
+			x_des = self.x_cur
+			y_des = self.y_cur
 			w_des = self.w_cur + 3.14/2
+			
+			if err_ang<err_lim_ang: # pick a new value based off burger.yaml file/tuning
+				state = 2# change depending on status of alignment
+				flag_get_image = 1
 			
 		if state == 4:
 			self.get_logger().info('State 4: Determining Next Waypoint')
@@ -248,8 +258,8 @@ class NavMaze(Node):
 		
 		classifier = joblib.load(classifier_filepath)
 		predicted = classifier.predict(features_test)
-		prediction = np.median(predicted)
-		return prediction
+		pred = np.median(predicted)
+		return pred
 
 	def crop_function(self,image):
 		low_H = 0
@@ -345,7 +355,7 @@ class NavMaze(Node):
 		])
 		Pnew = np.dot(T, local_p1)
 		min_error = float('inf')
-		newWaypt = None
+		newWaypoint = None
 
 		for waypoint in waypoints:
 			x_target, y_target = waypoint #took out w_temp
