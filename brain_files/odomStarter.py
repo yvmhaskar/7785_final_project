@@ -1,9 +1,5 @@
 # Joseph Sommer and Yash Mhaskar
 
-# aligning
-# get_lidar data and function. Already have from lab 4
-# state 3, after detecting a wall, what do you do?
-
 # Required Libraries
 from __future__ import print_function
 import rclpy
@@ -70,12 +66,9 @@ KW = 0.8
 LIDAR_FOV = np.pi/8 #rad
 
 #tolerance
-D_TOL1 = 0.8
-D_TOL2 = 0.6 #m
+D_TOL1 = 0.8 # alignment stage
+D_TOL2 = 0.6 # scan stage
 A_TOL = 0.02 #rad
-
-WIDTH, HEIGHT = 256, 144 #144p
-MIN_WHITE = 240
 
 def normalize(angle):
 	return np.arctan2(np.sin(angle), np.cos(angle))
@@ -83,9 +76,7 @@ def normalize(angle):
 class SolveMaze(Node):
 	def __init__(self):
 		super().__init__('SolveMaze') #create node
-
 		self.reset_frame = True #reset global frame to current position/orientation
-
 		#subcribe to /odom
 		self._odom_subscriber = self.create_subscription(
 			Odometry,
