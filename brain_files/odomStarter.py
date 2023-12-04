@@ -49,6 +49,8 @@ global flag_get_image
 flag_get_image = 0
 global got_predict
 got_predict=0
+global align_x
+align_x= 0
 
 #max velocity
 MAX_VEL = 0.2 #m/s
@@ -127,6 +129,7 @@ class SolveMaze(Node):
 				elif pred == 1.0 or pred == 2.0:
 					self.rotate(np.pi/2)
 					self.move_forward()
+
 				elif pred == 3 or pred == 4:
 					self.rotate(-np.pi/2)
 					self.move_forward()
@@ -142,11 +145,15 @@ class SolveMaze(Node):
 
 	#--- atomic move functions ---
 	def move_forward(self):
+		global align_x
 		while True:
 			self.wait_odom()
 
 			if self.new_lidar:
 				self.new_lidar = False
+				if self.obst_dist <= 0.8:
+					self._vel_publisher.publish(Twist())
+					self.pub_coord(align_x)
 				if self.obst_dist <= D_TOL:
 					self._vel_publisher.publish(Twist())
 					return
@@ -170,6 +177,33 @@ class SolveMaze(Node):
 			cmd = Twist()
 			cmd.angular.z = np.clip(KW*err_a, -MAX_ANG, MAX_ANG)
 			self._vel_publisher.publish(cmd)
+
+	def pub_coord(self, x1):
+		global ang_err_old		
+		#logic
+		# Set direction. Positive is angled right, negative is angled left
+		direction = 1
+		if x1 > 328/2:
+			direction = -1
+		# Perpendicular distance in pixels to center and outer edges of object
+		x1_bar = 328/2 - x1 # units of pixel values. Describes perpendicular distance from x_axis of robot
+		x1_bar = x1_bar*direction
+
+		#x2_bar = x1_bar - r # result is perp distance from center axis to edge of object. In pixels
+		#x3_bar = x1_bar + r # result is perp distance from center axis to other edge of object. In pixels
+
+		# angular offset from x axis to center and outer edges of object
+		theta1 = x1_bar * (62.2/2) / (328/2) # result is angular displacement from x_axis of robot in degrees
+		#theta2 = x2_bar * (62.2/2) / (328/2) # result is angular displacement from x_axis of robot in degrees
+		#theta3 = x3_bar * (62.2/2) / (328/2) # result is angular displacement from x_axis of robot in degrees
+
+		#ang_err = direction*(angle_index2+index) * angular_resolution # angular error in degrees
+		ang_err = theta1*direction
+		ang_err = (ang_err + ang_err_old)/2
+		# publish direction
+		ang_err_old = ang_err
+		# Publish the x-axis position
+		self.rotate(ang_err)
 
 	#--- wait for topic updates ---
 	def wait_odom(self):
@@ -229,6 +263,7 @@ class SolveMaze(Node):
 	
 	# Cropping the Images based on the colours
 	def crop_function(self,image):
+		global flag_get_image, align_x
 		low_H = 0
 		low_S = 99
 		low_V = 119
@@ -271,6 +306,8 @@ class SolveMaze(Node):
 		if no_contour != 2:
 			count = filtered_contours[0]
 			(x_axis,y_axis),radius = cv2.minEnclosingCircle(count)
+			if flag_get_image==20:
+				align_x = x_axis
 			center = (int(x_axis),int(y_axis))
 			radius = int(radius)
 			# reduces likelihood of showing contour on wrong object
