@@ -61,7 +61,7 @@ KW = 0.8
 LIDAR_FOV = np.pi/6 #rad
 
 #tolerance
-D_TOL = 0.45 #m
+D_TOL = 0.6 #m
 A_TOL = 0.02 #rad
 
 WIDTH, HEIGHT = 256, 144 #144p
@@ -124,12 +124,17 @@ class SolveMaze(Node):
 				self.get_logger().info(f'prediction: {pred}')
 				if pred == 0:
 					self.move_forward()
-				elif pred == 1:
+				elif pred == 1.0 or pred == 2.0:
 					self.rotate(np.pi/2)
-				elif pred == 2:
-					self.rotate(-np.pi/2)
+					self.move_forward()
 				elif pred == 3 or pred == 4:
+					self.rotate(-np.pi/2)
+					self.move_forward()
+				elif pred == 5 or pred == 6:
 					self.rotate(np.pi)
+					self.move_forward()
+				elif pred == 7:
+					print('REACHED GOAL')
 				else:
 					return
 				flag_get_image = 0
@@ -152,6 +157,7 @@ class SolveMaze(Node):
 			self._vel_publisher.publish(cmd)
 
 	def rotate(self, angle):
+		print("reached rotate")
 		while True:
 			self.wait_odom()
 
@@ -179,26 +185,23 @@ class SolveMaze(Node):
 			rclpy.spin_once(self)
 
 	def _image_callback(self, CompressedImage):
-			# The "CompressedImage" is transformed to a color image in BGR space and is store in "_imgBGR"
-				
-			global flag_get_image, predicted, got_predict
-			if flag_get_image>0 and flag_get_image<=20:
-					print(flag_get_image)
-					image = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
-					predicted[flag_get_image-1] = self.classify_image(image)
-					if flag_get_image == 20:
-						got_predict=1
-					flag_get_image = flag_get_image+1
-			else:
-				flag_get_image=0
-				self.new_img = True
+			# The "CompressedImage" is transformed to a color image in BGR space and is store in "_imgBGR"		
+		global flag_get_image, predicted, got_predict
+		if flag_get_image>0 and flag_get_image<=20:
+				image = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
+				predicted[flag_get_image-1] = self.classify_image(image)
+				if flag_get_image == 20:
+					got_predict=1
+				flag_get_image = flag_get_image+1
+		else:
+			flag_get_image=0
+			self.new_img = True
 
 	##### Image Processing & classification
 	def classify_image(self,image):
 		
 		# Load data
-		data = image
-
+		data = [image]
 		# Classifier Filepath
 		classifier_filepath = '/home/ymhaskar/classifier.pkl'
 		
