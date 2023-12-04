@@ -132,18 +132,19 @@ class SolveMaze(Node):
 			if got_predict == 1:
 				pred = np.median(predicted) # change to class
 				self.get_logger().info(f'prediction: {pred}')
-				if (pred == 1.0 or pred == 2.0) and alpha>0:
-					ang_turn = (np.pi/2.0) + abs(alpha)
-				elif (pred == 1.0 or pred == 2.0) and alpha<0:
-					ang_turn = (np.pi/2.0) - abs(alpha)
-				elif (pred == 3.0 or pred == 4.0) and alpha>0:
-					ang_turn = (np.pi/2.0) - abs(alpha)
+				ang_turn = 0.0
+				if (pred == 3.0 or pred == 4.0) and alpha>0:
+					ang_turn = -1* abs(alpha)
 				elif (pred == 3.0 or pred == 4.0) and alpha<0:
-					ang_turn = (np.pi/2.0) + abs(alpha)
+					ang_turn = abs(alpha)
+				elif (pred == 1.0 or pred == 2.0) and alpha>0:
+					ang_turn = abs(alpha)
+				elif (pred == 1.0 or pred == 2.0) and alpha<0:
+					ang_turn = -1* abs(alpha)
 				elif (pred == 5.0 or pred == 6.0) and alpha>0:
-					ang_turn = (np.pi) + abs(alpha)
+					ang_turn = -1*abs(alpha)
 				elif (pred == 5.0 or pred == 6.0) and alpha<0:
-					ang_turn = (np.pi) - abs(alpha)
+					ang_turn = abs(alpha)
 
 				
 				if pred % 1 != 0:
