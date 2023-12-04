@@ -53,8 +53,8 @@ global align_x
 align_x= 0
 global flag_align_robot
 flag_align_robot = 0
-global ang_err_old	
-ang_err_old = 0
+global alpha	
+alpha = 0
 global counter
 counter=0
 global odom_err
@@ -132,6 +132,20 @@ class SolveMaze(Node):
 			if got_predict == 1:
 				pred = np.median(predicted) # change to class
 				self.get_logger().info(f'prediction: {pred}')
+				if (pred == 1.0 or pred == 2.0) and alpha>0:
+					ang_turn = (np.pi/2.0) + abs(alpha)
+				elif (pred == 1.0 or pred == 2.0) and alpha<0:
+					ang_turn = (np.pi/2.0) - abs(alpha)
+				elif (pred == 3.0 or pred == 4.0) and alpha>0:
+					ang_turn = (np.pi/2.0) - abs(alpha)
+				elif (pred == 3.0 or pred == 4.0) and alpha<0:
+					ang_turn = (np.pi/2.0) + abs(alpha)
+				elif (pred == 5.0 or pred == 6.0) and alpha>0:
+					ang_turn = (np.pi) + abs(alpha)
+				elif (pred == 5.0 or pred == 6.0) and alpha<0:
+					ang_turn = (np.pi) - abs(alpha)
+
+				
 				if pred % 1 != 0:
 					pred = 0
 
@@ -149,7 +163,7 @@ class SolveMaze(Node):
 
 				elif pred == 1.0 or pred == 2.0:
 					odom_err=odom_err+0.002
-					self.rotate(np.pi/2-odom_err)
+					self.rotate(ang_turn)#np.pi/2-odom_err)
 					self.move_forward(D_TOL1)
 					flag_align_robot = 1
 					while flag_align_robot:
@@ -160,7 +174,7 @@ class SolveMaze(Node):
 
 				elif pred == 3.0 or pred == 4.0:
 					odom_err=odom_err+0.002
-					self.rotate(-np.pi/2+odom_err)
+					self.rotate(ang_turn)#-np.pi/2+odom_err)
 					self.move_forward(D_TOL1)
 					flag_align_robot = 1
 					while flag_align_robot:
@@ -171,7 +185,7 @@ class SolveMaze(Node):
 
 				elif pred == 5.0 or pred == 6.0:
 					odom_err=odom_err+0.002
-					self.rotate(np.pi-2*odom_err)
+					self.rotate(ang_turn)#np.pi-2*odom_err)
 					self.move_forward(D_TOL1)
 					flag_align_robot = 1
 					while flag_align_robot:
@@ -223,7 +237,7 @@ class SolveMaze(Node):
 
 	def pub_coord(self, x1):
 		print('Aligning')
-		global ang_err_old		
+		global alpha		
 		#logic
 		# Set direction. Positive is angled right, negative is angled left
 		direction = 1
@@ -251,6 +265,7 @@ class SolveMaze(Node):
 			self.rotate(ang_err)
 		else:
 			return
+		return ang_err
 
 	#--- wait for topic updates ---
 	def wait_odom(self):
