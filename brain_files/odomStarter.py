@@ -198,13 +198,11 @@ class SolveMaze(Node):
 		global align_x
 		while True:
 			self.wait_odom()
-
 			if self.new_lidar:
 				self.new_lidar = False
 				if self.obst_dist <= d_range:
 					self._vel_publisher.publish(Twist())
 					return
-
 			cmd = Twist()
 			cmd.linear.x = MAX_VEL
 			cmd.angular.z = np.clip(-KW*self.a, -MAX_ANG, MAX_ANG)
@@ -215,7 +213,6 @@ class SolveMaze(Node):
 		print(angle)
 		while True:
 			self.wait_odom()
-
 			err_a = normalize(angle - self.a)
 			if abs(err_a) <= A_TOL:
 				self._vel_publisher.publish(Twist())
