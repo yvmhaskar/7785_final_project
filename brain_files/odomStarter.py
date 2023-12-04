@@ -51,19 +51,27 @@ global got_predict
 got_predict=0
 global align_x
 align_x= 0
-
+global flag_align_robot
+flag_align_robot = 0
+global ang_err_old	
+ang_err_old = 0
+global counter
+counter=0
+global odom_err
+odom_err=0
 #max velocity
-MAX_VEL = 0.2 #m/s
+MAX_VEL = 0.15 #m/s
 MAX_ANG = 1.5 #rad/s
 
 #PID constants
 KW = 0.8
 
 #LIDAR forward scan segment
-LIDAR_FOV = np.pi/6 #rad
+LIDAR_FOV = np.pi/8 #rad
 
 #tolerance
-D_TOL = 0.6 #m
+D_TOL1 = 0.8
+D_TOL2 = 0.6 #m
 A_TOL = 0.02 #rad
 
 WIDTH, HEIGHT = 256, 144 #144p
@@ -118,25 +126,61 @@ class SolveMaze(Node):
 	
 	#--- dispatcher ---
 	def solve_maze(self):
-		global predicted, flag_get_image, got_predict
+		global predicted, flag_get_image, got_predict, flag_align_robot, counter, odom_err
 		while True:
 			self.wait_image()
 			if got_predict == 1:
 				pred = np.median(predicted) # change to class
 				self.get_logger().info(f'prediction: {pred}')
-				if pred == 0:
-					self.move_forward()
-				elif pred == 1.0 or pred == 2.0:
-					self.rotate(np.pi/2)
-					self.move_forward()
+				if pred % 1 != 0:
+					pred = 0
 
-				elif pred == 3 or pred == 4:
-					self.rotate(-np.pi/2)
-					self.move_forward()
-				elif pred == 5 or pred == 6:
-					self.rotate(np.pi)
-					self.move_forward()
-				elif pred == 7:
+				if counter == 5:
+					pred = 3.0
+
+				if pred == 0:
+					self.move_forward(D_TOL1)
+					flag_align_robot = 1
+					while flag_align_robot:
+						rclpy.spin_once(self)
+					self.pub_coord(align_x)
+					self.move_forward(D_TOL2)
+					counter = counter+1
+
+				elif pred == 1.0 or pred == 2.0:
+					odom_err=odom_err+0.002
+					self.rotate(np.pi/2-odom_err)
+					self.move_forward(D_TOL1)
+					flag_align_robot = 1
+					while flag_align_robot:
+						rclpy.spin_once(self)
+					self.pub_coord(align_x)
+					self.move_forward(D_TOL2)
+					counter=0
+
+				elif pred == 3.0 or pred == 4.0:
+					odom_err=odom_err+0.002
+					self.rotate(-np.pi/2+odom_err)
+					self.move_forward(D_TOL1)
+					flag_align_robot = 1
+					while flag_align_robot:
+						rclpy.spin_once(self)
+					self.pub_coord(align_x)
+					self.move_forward(D_TOL2)
+					counter=0
+
+				elif pred == 5.0 or pred == 6.0:
+					odom_err=odom_err+0.002
+					self.rotate(np.pi-2*odom_err)
+					self.move_forward(D_TOL1)
+					flag_align_robot = 1
+					while flag_align_robot:
+						rclpy.spin_once(self)
+					self.pub_coord(align_x)
+					self.move_forward(D_TOL2)
+					counter=0
+
+				elif pred == 7.0:
 					print('REACHED GOAL')
 				else:
 					return
@@ -144,17 +188,15 @@ class SolveMaze(Node):
 				got_predict=0
 
 	#--- atomic move functions ---
-	def move_forward(self):
+	def move_forward(self, d_range):
+		print('forward')
 		global align_x
 		while True:
 			self.wait_odom()
 
 			if self.new_lidar:
 				self.new_lidar = False
-				if self.obst_dist <= 0.8:
-					self._vel_publisher.publish(Twist())
-					self.pub_coord(align_x)
-				if self.obst_dist <= D_TOL:
+				if self.obst_dist <= d_range:
 					self._vel_publisher.publish(Twist())
 					return
 
@@ -165,6 +207,7 @@ class SolveMaze(Node):
 
 	def rotate(self, angle):
 		print("reached rotate")
+		print(angle)
 		while True:
 			self.wait_odom()
 
@@ -179,6 +222,7 @@ class SolveMaze(Node):
 			self._vel_publisher.publish(cmd)
 
 	def pub_coord(self, x1):
+		print('Aligning')
 		global ang_err_old		
 		#logic
 		# Set direction. Positive is angled right, negative is angled left
@@ -198,12 +242,15 @@ class SolveMaze(Node):
 		#theta3 = x3_bar * (62.2/2) / (328/2) # result is angular displacement from x_axis of robot in degrees
 
 		#ang_err = direction*(angle_index2+index) * angular_resolution # angular error in degrees
-		ang_err = theta1*direction
-		ang_err = (ang_err + ang_err_old)/2
+		ang_err = theta1*direction* np.pi/180.0
+		#ang_err = (ang_err + ang_err_old)/2
 		# publish direction
-		ang_err_old = ang_err
+		#ang_err_old = ang_err
 		# Publish the x-axis position
-		self.rotate(ang_err)
+		if abs(ang_err)<0.5:
+			self.rotate(ang_err)
+		else:
+			return
 
 	#--- wait for topic updates ---
 	def wait_odom(self):
@@ -220,7 +267,12 @@ class SolveMaze(Node):
 
 	def _image_callback(self, CompressedImage):
 			# The "CompressedImage" is transformed to a color image in BGR space and is store in "_imgBGR"		
-		global flag_get_image, predicted, got_predict
+		global flag_get_image, predicted, got_predict, flag_align_robot
+		
+		if flag_align_robot==1:
+			image = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
+			p = self.classify_image(image)
+
 		if flag_get_image>0 and flag_get_image<=20:
 				image = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
 				predicted[flag_get_image-1] = self.classify_image(image)
@@ -263,7 +315,7 @@ class SolveMaze(Node):
 	
 	# Cropping the Images based on the colours
 	def crop_function(self,image):
-		global flag_get_image, align_x
+		global flag_align_robot, align_x
 		low_H = 0
 		low_S = 99
 		low_V = 119
@@ -272,7 +324,7 @@ class SolveMaze(Node):
 		high_V = 236
 		min_size = 0.1
 		no_contour = 0
-		image = image[0:410, 50:258]
+		#image = image[0:410, 50:258]
 		blur = cv2.GaussianBlur(image,(15,15),0)
 		blur_HSV = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
 		frame_threshold = cv2.inRange(blur_HSV,(low_H, low_S, low_V),(high_H, high_S, high_V))
@@ -306,8 +358,9 @@ class SolveMaze(Node):
 		if no_contour != 2:
 			count = filtered_contours[0]
 			(x_axis,y_axis),radius = cv2.minEnclosingCircle(count)
-			if flag_get_image==20:
+			if flag_align_robot==1:
 				align_x = x_axis
+				flag_align_robot=0
 			center = (int(x_axis),int(y_axis))
 			radius = int(radius)
 			# reduces likelihood of showing contour on wrong object
@@ -327,10 +380,11 @@ class SolveMaze(Node):
 			#print("No Contour found")
 			cropped = image
 		#cv2.imshow('CHAIN_APPROX_SIMPLE Point only', blur_HSV)
-		print(no_contour)
+		#print(no_contour)
 		#cv2.waitKey(0)
 		#print(no_contour)
 		return cropped
+	
 	def apply_closing(self,image, kernel_size):
 		kernel = np.ones((kernel_size,kernel_size), np.uint8)
 		closing_result = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
