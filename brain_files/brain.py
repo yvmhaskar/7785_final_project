@@ -55,7 +55,7 @@ x_des = 0.0
 global y_des
 y_des = 0.0
 global w_des
-w_des = 1.0
+w_des = 0.0 ## Beginning orientation
 global prediction
 prediction = 0
 global lidar_input
@@ -97,14 +97,17 @@ class NavMaze(Node):
 		self.waypt_pub = self.create_publisher(PoseStamped, 'goal_pose', 10)
 
 	def image_callback(self, CompressedImage):
-		global flag_get_image, image_array, state, predicted
-		if flag_get_image>0 and flag_get_image<=20:
-			if state==1:
-				image = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
-			if state==2:
-				image = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
-				predicted[flag_get_image-1] = self.classify_image(image)
-				flag_get_image = flag_get_image+1
+		global flag_get_image, image_array, state, predicted, prediction
+
+		if flag_get_image>0 and flag_get_image<=19:
+			
+			image = [CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")]
+			predicted[flag_get_image] = self.classify_image(image)
+			flag_get_image = flag_get_image+1
+			#if flag_get_image==20:
+			#	prediction = np.median(predicted)
+				#cv2.imshow('CHAIN_APPROX_SIMPLE Point only', image)
+			#	self.get_logger().info('Prediction: {}'.format(prediction))
 		else:
 			flag_get_image=0
 
@@ -124,27 +127,40 @@ class NavMaze(Node):
 
 		#List of block centers
 
-		bc_shape = block_centers.shape
+		bc_shape = block_centers.shape[0]
 		# structured like poseStamped so calculate own error and use to determine states
 
 		err_lim_lin = 0.1 # error limit linear
-		err_lim_ang = 0.1 # error limit angular
+		err_lim_ang = 0.5 # error limit angular
 
 		if state == 0:
-			self.get_logger().info('State 0: Moving to center of block')
-			dist_err = np.zeros(bc_shape)
-			i = 0
-			for bc in block_centers:
-				dist_err[i] = math.sqrt((bc[0]-self.x_cur)**2 + (bc[1]-self.y_cur)**2)
-				i=i+1
-			idx = np.argmin(dist_err)
-			x_des = block_centers[idx][0]
-			y_des = block_centers[idx][1]
-			w_des = self.w_cur
-			err_lin = np.min(dist_err)
 			
+			#dist_err = np.zeros([bc_shape,1])
+			#i = 0
+			min_error = float('inf')
+			newWaypoint = np.zeros(3)
+			for waypoint in block_centers:
+				x_target, y_target = waypoint #took out w_temp
+
+				# Calculate error for each waypoint
+				error = math.sqrt((x_target - self.x_cur) ** 2 + (y_target - self.y_cur) ** 2)
+				if error < min_error:
+					min_error = error
+				newWaypoint[:2] = waypoint
+			#for bc in block_centers:
+			#	dist_err[i] = math.sqrt((bc[0]-self.x_cur)**2 + (bc[1]-self.y_cur)**2)
+			#	i=i+1
+			#idx = np.argmin(dist_err)
+
+			x_des = newWaypoint[0]
+			y_des = newWaypoint[1]
+			
+			#y_des = block_centers[idx][1]
+			#err_lin = np.min(dist_err)
+			err_lin = min_error
 			if err_lin<err_lim_lin: # pick a new value based off burger.yaml file/tuning
 				state = 2
+				self.get_logger().info('State 2: Taking images')
 				flag_get_image = 1
 			
 		if state == 1:
@@ -161,27 +177,26 @@ class NavMaze(Node):
 				flag_get_image = 1
 
 		if state == 2:
-			self.get_logger().info('State 2: Taking images')
+			
 			if flag_get_image==0:
-				self.get_logger().info('State 2: Classifying image')
+				self.get_logger().info('State 2: Classified image')
 				#prediction = self.classify_image(image_array)
 				prediction = np.median(predicted)
 				self.get_logger().info('Prediction: {}'.format(prediction))
 				self.get_logger().info('State 2: Classifying image')
+				
 				if prediction==0 and lidar_input==1:# 1 means wall in front
 					self.get_logger().info('State 2: classified wall')
 					state = 3
-					x_des = self.x_cur
-					y_des = self.y_cur
+					self.get_logger().info('State 3: Wall detected, turning right')
+
 					w_des = self.w_cur + 3.14/2
 				else:
 					state = 4
-			x_des = self.x_cur
-			y_des = self.y_cur
-			w_des = self.w_cur
+					self.get_logger().info('State 4: Determining Next Waypoint')
 		
 		if state == 3:
-			self.get_logger().info('State 3: Wall detected, turning right')
+			
 			
 			err_ang = abs(w_des-self.w_cur)
 			if err_ang<err_lim_ang: # pick a new value based off burger.yaml file/tuning
@@ -189,14 +204,14 @@ class NavMaze(Node):
 				flag_get_image = 1
 			
 		if state == 4:
-			self.get_logger().info('State 4: Determining Next Waypoint')
-
+			
 			if prediction==0 and lidar_input==0: # wall classification without wall there
 				Newpt = self.newWaypt(self.x_cur,self.y_cur,self.w_cur,0)
 				x_des = Newpt[0]
 				y_des = Newpt[1]
 				w_des = Newpt[2]
 				state = 5
+				self.get_logger().info('State 5: Moving to straight waypoint')
 
 			if prediction==1 or prediction==2: # left arrows
 				Newpt = self.newWaypt(self.x_cur,self.y_cur,self.w_cur,2)
@@ -204,6 +219,7 @@ class NavMaze(Node):
 				y_des = Newpt[1]
 				w_des = Newpt[2]
 				state = 5
+				self.get_logger().info('State 5: Moving to left waypoint')
 
 			if prediction==3 or prediction==4: # right arrows
 				Newpt = self.newWaypt(self.x_cur,self.y_cur,self.w_cur,1)
@@ -211,6 +227,7 @@ class NavMaze(Node):
 				y_des = Newpt[1]
 				w_des = Newpt[2]
 				state = 5
+				self.get_logger().info('State 5: Moving to right waypoint')
 
 			if prediction==5 or prediction==6: # stop an turn around
 				Newpt = self.newWaypt(self.x_cur,self.y_cur,self.w_cur,3)
@@ -218,6 +235,7 @@ class NavMaze(Node):
 				y_des = Newpt[1]
 				w_des = Newpt[2]
 				state = 5
+				self.get_logger().info('State 5: Moving to back waypoint')
 
 			if prediction==7: # reached goal
 				state = 6
@@ -226,11 +244,12 @@ class NavMaze(Node):
 				w_des = self.w_cur
 
 		if state == 5:
-			self.get_logger().info('State 5: Moving to new waypoint')
+			
 			dist_err = math.sqrt((x_des-self.x_cur)**2 + (y_des-self.y_cur)**2)
 
 			if dist_err< err_lim_lin:
-				state=0
+				state=2
+				self.get_logger().info('State 2: Classifying')
 				
 		if state == 6:
 			self.get_logger().info('State 6: REACHED GOALLLLLLL')
@@ -250,37 +269,35 @@ class NavMaze(Node):
 		
 	def classify_image(self,image):
 		
-		#images_filepath ='/home/ymhaskar/VisionFollowing/2022Fimgs/' # TESTING ON 2022Fimgs
-		#labels_filepath = '/home/ymhaskar/VisionFollowing/2022Fimgs/labels2.txt'
-
-		data = image
-		classifier_filepath = '/home/ymhaskar/classifier.pkl'
-
 		# Load data
-		#data, label = load_data(images_filepath, labels_filepath)
-		print('\nImported', data.shape[0], 'training instances')
-		#print(label)
-		data_test_cropped = [self.crop_function(image) for image in data]
+		data = image
+
+		# Classifier Filepath
+		classifier_filepath = '/home/ymhaskar/classifier.pkl'
+		
+		# Crop images
+		data_cropped = [self.crop_function(image) for image in data]
 
 		# Feature extraction using color histogram
-		color_hist_features_test = [self.extract_color_histogram(image).reshape(-1) for image in data_test_cropped]
-
-		# Feature extraction using HOG
-		hog_features_test = [self.extract_hog_features(image).reshape(-1) for image in data_test_cropped]
-
-		# Feature extraction using HOG skewness
-		skewness_features_test = [self.compute_hog_skewness(image) for image in data_test_cropped]
-
-		print('color_hist_features_test shape:', color_hist_features_test[0].shape)
-		print('hog_features_test shape:', hog_features_test[0].shape)
-		print('skewness_features_test shape:', skewness_features_test[0].shape)
-
-		features_test = np.hstack((color_hist_features_test, hog_features_test, skewness_features_test))
+		color_hist_features = [self.extract_color_histogram(image).reshape(-1) for image in data_cropped]
 		
+		# Feature extraction using HOG
+		fixed_size = (308,410)
+		resized_images = [cv2.resize(image, fixed_size) for image in data_cropped]
+		hog_features = [self.extract_hog_features(image).reshape(-1) for image in resized_images]
+		
+		# Feature extraction using HOG skewness
+		skewness_features = [self.compute_hog_skewness(image) for image in data]
+		
+		# Concatenate features
+		features = np.hstack((color_hist_features, hog_features, skewness_features))
+		
+		# Load Classifier
 		classifier = joblib.load(classifier_filepath)
-		predicted = classifier.predict(features_test)
+		predicted = classifier.predict(features)
 		return predicted
-
+	
+	# Cropping the Images based on the colours
 	def crop_function(self,image):
 		low_H = 0
 		low_S = 99
@@ -290,6 +307,7 @@ class NavMaze(Node):
 		high_V = 236
 		min_size = 0.1
 		no_contour = 0
+		image = image[0:410, 50:258]
 		blur = cv2.GaussianBlur(image,(15,15),0)
 		blur_HSV = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
 		frame_threshold = cv2.inRange(blur_HSV,(low_H, low_S, low_V),(high_H, high_S, high_V))
@@ -342,7 +360,7 @@ class NavMaze(Node):
 			#print("No Contour found")
 			cropped = image
 		#cv2.imshow('CHAIN_APPROX_SIMPLE Point only', blur_HSV)
-		#print(no_contour)
+		print(no_contour)
 		#cv2.waitKey(0)
 		#print(no_contour)
 		return cropped
@@ -437,8 +455,8 @@ class NavMaze(Node):
 		hog_image_np = hog_image_rescaled.flatten()
 		hog_image_np = hog_image_np.astype(np.float32)
 		return hog_image_np*10000.0
+		# Function to extract skewness of HOG
 
-	# Function to extract skewness of HOG
 	def compute_hog_skewness(self,image):
 		gray_image = color.rgb2gray(image)
 		fd, hog_image = hog(
@@ -473,9 +491,9 @@ class NavMaze(Node):
 		goal.pose.orientation.z = 0.0
 		goal.pose.orientation.w = w
 		self.waypt_pub.publish(goal)
-		self.get_logger().info('X: {}'.format(x))
-		self.get_logger().info('Y: {}'.format(y))
-		self.get_logger().info('W: {}'.format(w))
+		#self.get_logger().info('X: {}'.format(x))
+		#self.get_logger().info('Y: {}'.format(y))
+		#self.get_logger().info('W: {}'.format(w))
 
 def main(args=None):
 	
