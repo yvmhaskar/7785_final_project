@@ -183,6 +183,7 @@ class SolveMaze(Node):
 				
 			global flag_get_image, predicted, got_predict
 			if flag_get_image>0 and flag_get_image<=20:
+					print(flag_get_image)
 					image = CvBridge().compressed_imgmsg_to_cv2(CompressedImage, "bgr8")
 					predicted[flag_get_image-1] = self.classify_image(image)
 					if flag_get_image == 20:
@@ -195,37 +196,35 @@ class SolveMaze(Node):
 	##### Image Processing & classification
 	def classify_image(self,image):
 		
-		#images_filepath ='/home/ymhaskar/VisionFollowing/2022Fimgs/' # TESTING ON 2022Fimgs
-		#labels_filepath = '/home/ymhaskar/VisionFollowing/2022Fimgs/labels2.txt'
-
-		data = image
-		classifier_filepath = '/home/ymhaskar/classifier.pkl'
-
 		# Load data
-		#data, label = load_data(images_filepath, labels_filepath)
-		print('\nImported', data.shape[0], 'training instances')
-		#print(label)
-		data_test_cropped = [self.crop_function(image) for image in data]
+		data = image
+
+		# Classifier Filepath
+		classifier_filepath = '/home/ymhaskar/classifier.pkl'
+		
+		# Crop images
+		data_cropped = [self.crop_function(image) for image in data]
 
 		# Feature extraction using color histogram
-		color_hist_features_test = [self.extract_color_histogram(image).reshape(-1) for image in data_test_cropped]
-
-		# Feature extraction using HOG
-		hog_features_test = [self.extract_hog_features(image).reshape(-1) for image in data_test_cropped]
-
-		# Feature extraction using HOG skewness
-		skewness_features_test = [self.compute_hog_skewness(image) for image in data_test_cropped]
-
-		print('color_hist_features_test shape:', color_hist_features_test[0].shape)
-		print('hog_features_test shape:', hog_features_test[0].shape)
-		print('skewness_features_test shape:', skewness_features_test[0].shape)
-
-		features_test = np.hstack((color_hist_features_test, hog_features_test, skewness_features_test))
+		color_hist_features = [self.extract_color_histogram(image).reshape(-1) for image in data_cropped]
 		
+		# Feature extraction using HOG
+		fixed_size = (308,410)
+		resized_images = [cv2.resize(image, fixed_size) for image in data_cropped]
+		hog_features = [self.extract_hog_features(image).reshape(-1) for image in resized_images]
+		
+		# Feature extraction using HOG skewness
+		skewness_features = [self.compute_hog_skewness(image) for image in data]
+		
+		# Concatenate features
+		features = np.hstack((color_hist_features, hog_features, skewness_features))
+		
+		# Load Classifier
 		classifier = joblib.load(classifier_filepath)
-		predicted = classifier.predict(features_test)
+		predicted = classifier.predict(features)
 		return predicted
-
+	
+	# Cropping the Images based on the colours
 	def crop_function(self,image):
 		low_H = 0
 		low_S = 99
@@ -235,6 +234,7 @@ class SolveMaze(Node):
 		high_V = 236
 		min_size = 0.1
 		no_contour = 0
+		image = image[0:410, 50:258]
 		blur = cv2.GaussianBlur(image,(15,15),0)
 		blur_HSV = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
 		frame_threshold = cv2.inRange(blur_HSV,(low_H, low_S, low_V),(high_H, high_S, high_V))
@@ -287,7 +287,7 @@ class SolveMaze(Node):
 			#print("No Contour found")
 			cropped = image
 		#cv2.imshow('CHAIN_APPROX_SIMPLE Point only', blur_HSV)
-		#print(no_contour)
+		print(no_contour)
 		#cv2.waitKey(0)
 		#print(no_contour)
 		return cropped
@@ -334,8 +334,8 @@ class SolveMaze(Node):
 		hog_image_np = hog_image_rescaled.flatten()
 		hog_image_np = hog_image_np.astype(np.float32)
 		return hog_image_np*10000.0
+		# Function to extract skewness of HOG
 
-	# Function to extract skewness of HOG
 	def compute_hog_skewness(self,image):
 		gray_image = color.rgb2gray(image)
 		fd, hog_image = hog(
@@ -358,6 +358,7 @@ class SolveMaze(Node):
 		for i in range(0,len(skew_vals)):
 			norm_vals[i] = (skew_vals[i]-min(skew_vals))/(max(skew_vals)-min(skew_vals))
 		return norm_vals
+	
 	#--- topic callbacks ---
 	def _odom_callback(self, odom_msg):
 		position = odom_msg.pose.pose.position
