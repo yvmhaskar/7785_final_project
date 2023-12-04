@@ -10,6 +10,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy, QoSHistoryPolicy
 import math
 from sensor_msgs.msg import CompressedImage
@@ -86,7 +87,7 @@ class NavMaze(Node):
 		self.get_image # Prevents unused variable warning.
 
 		#Declare feedback_sub is subscribing to the /navigate_to_pose/_action/feedback.
-		self.feedback_sub = self.create_subscription(NavigateToPose_FeedbackMessage,'/navigate_to_pose/_action/feedback',self.feedback_callback,10)
+		self.feedback_sub = self.create_subscription(PoseWithCovarianceStamped,'/amcl_pose',self.feedback_callback,10)
 		self.feedback_sub
 		
 		#Declare lidar_sub is subscribing to the wall_detection.
@@ -119,10 +120,14 @@ class NavMaze(Node):
 	def feedback_callback(self,msg):
 		global state, x_des, y_des, w_des, flag_get_image, image_array, block_centers, prediction, lidar_input, predicted
 		
-		feedback = msg.feedback
-		self.x_cur = feedback.current_pose.pose.position.x
-		self.y_cur = feedback.current_pose.pose.position.y
-		self.w_cur = feedback.current_pose.pose.orientation.w
+		#feedback = msg.feedback
+		#self.x_cur = feedback.current_pose.pose.position.x
+		#self.y_cur = feedback.current_pose.pose.position.y
+		#self.w_cur = feedback.current_pose.pose.orientation.w
+
+		self.x_cur = msg.pose.pose.position.x
+		self.y_cur = msg.pose.pose.position.y
+		self.w_cur = msg.pose.pose.orientation.w
 
 
 		#List of block centers
@@ -265,7 +270,7 @@ class NavMaze(Node):
 		#goal.pose.orientation.w = w_des
 		#self.waypt_pub.publish(goal)
 
-		#self.waypt_pub.publish(goal)
+		self.publish_waypt(x_des,y_des,w_des)
 		
 	def classify_image(self,image):
 		
@@ -497,22 +502,20 @@ class NavMaze(Node):
 
 def main(args=None):
 	
-	#rclpy.init(args=args)
-	#nav_maze=NavMaze()
-	#nav_maze.feedback_callback
-	#rclpy.spin(nav_maze)
-	#nav_maze.destroy_node()
-	#rclpy.shutdown()
-
-	global x_des, y_des, w_des
 	rclpy.init(args=args)
 	nav_maze=NavMaze()
-	print('Started Publishing')
-	while rclpy.ok():
-		nav_maze.feedback_callback
-		nav_maze.publish_waypt(x_des, y_des, w_des)
-		rclpy.spin_once(nav_maze, timeout_sec=1)
-
+	nav_maze.feedback_callback
+	rclpy.spin(nav_maze)
+	nav_maze.destroy_node()
 	rclpy.shutdown()
 
-	rclpy.shutdown()
+	#global x_des, y_des, w_des
+	#rclpy.init(args=args)
+	#nav_maze=NavMaze()
+	#print('Started Publishing')
+	#while rclpy.ok():
+	#	nav_maze.feedback_callback
+#		nav_maze.publish_waypt(x_des, y_des, w_des)
+#		rclpy.spin_once(nav_maze, timeout_sec=1)
+
+#	rclpy.shutdown()
