@@ -120,6 +120,7 @@ def crop_function(image):
     high_V = 236
     min_size = 0.1
     no_contour = 0
+    #image = image[0:410, 10:298]
     blur = cv2.GaussianBlur(image,(15,15),0)
     blur_HSV = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
     frame_threshold = cv2.inRange(blur_HSV,(low_H, low_S, low_V),(high_H, high_S, high_V))
