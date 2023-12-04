@@ -126,32 +126,31 @@ class SolveMaze(Node):
 	
 	#--- dispatcher ---
 	def solve_maze(self):
-		global predicted, flag_get_image, got_predict, flag_align_robot, counter, odom_err
+		global predicted, flag_get_image, got_predict, flag_align_robot, counter, odom_err, alpha
 		while True:
+			ang_turn = 0.0
 			self.wait_image()
 			if got_predict == 1:
 				pred = np.median(predicted) # change to class
 				self.get_logger().info(f'prediction: {pred}')
-				ang_turn = 0.0
-				if (pred == 3.0 or pred == 4.0) and alpha>0:
-					ang_turn = -1* abs(alpha)
-				elif (pred == 3.0 or pred == 4.0) and alpha<0:
-					ang_turn = abs(alpha)
-				elif (pred == 1.0 or pred == 2.0) and alpha>0:
-					ang_turn = abs(alpha)
-				elif (pred == 1.0 or pred == 2.0) and alpha<0:
-					ang_turn = -1* abs(alpha)
-				elif (pred == 5.0 or pred == 6.0) and alpha>0:
-					ang_turn = -1*abs(alpha)
-				elif (pred == 5.0 or pred == 6.0) and alpha<0:
-					ang_turn = abs(alpha)
-
-				
 				if pred % 1 != 0:
 					pred = 0
 
 				if counter == 5:
 					pred = 3.0
+				
+				if (pred == 3.0 or pred == 4.0) and alpha>0:
+					ang_turn = -1*abs(alpha)
+				elif (pred == 3.0 or pred == 4.0) and alpha<0:
+					ang_turn = abs(alpha)
+				elif (pred == 1.0 or pred == 2.0) and alpha>0:
+					ang_turn = abs(alpha)
+				elif (pred == 1.0 or pred == 2.0) and alpha<0:
+					ang_turn = -1*abs(alpha)
+				elif (pred == 5.0 or pred == 6.0) and alpha>0:
+					ang_turn = -1*abs(alpha)
+				elif (pred == 5.0 or pred == 6.0) and alpha<0:
+					ang_turn = abs(alpha)
 
 				if pred == 0:
 					self.move_forward(D_TOL1)
@@ -164,7 +163,7 @@ class SolveMaze(Node):
 
 				elif pred == 1.0 or pred == 2.0:
 					odom_err=odom_err+0.002
-					self.rotate(ang_turn)#np.pi/2-odom_err)
+					self.rotate(np.pi/2+ang_turn)#-odom_err)
 					self.move_forward(D_TOL1)
 					flag_align_robot = 1
 					while flag_align_robot:
@@ -175,7 +174,7 @@ class SolveMaze(Node):
 
 				elif pred == 3.0 or pred == 4.0:
 					odom_err=odom_err+0.002
-					self.rotate(ang_turn)#-np.pi/2+odom_err)
+					self.rotate(ang_turn - np.pi/2)#+odom_err)
 					self.move_forward(D_TOL1)
 					flag_align_robot = 1
 					while flag_align_robot:
@@ -186,7 +185,7 @@ class SolveMaze(Node):
 
 				elif pred == 5.0 or pred == 6.0:
 					odom_err=odom_err+0.002
-					self.rotate(ang_turn)#np.pi-2*odom_err)
+					self.rotate(ang_turn + np.pi)#-2*odom_err)
 					self.move_forward(D_TOL1)
 					flag_align_robot = 1
 					while flag_align_robot:
@@ -263,10 +262,11 @@ class SolveMaze(Node):
 		#ang_err_old = ang_err
 		# Publish the x-axis position
 		if abs(ang_err)<0.5:
+			alpha = ang_err
 			self.rotate(ang_err)
 		else:
 			return
-		return ang_err
+		
 
 	#--- wait for topic updates ---
 	def wait_odom(self):
